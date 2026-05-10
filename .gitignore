@@ -1,0 +1,9 @@
+.dart_tool/
+.idea/
+build/
+*.apk
+*.aab
+*.lock
+flutter_*.png
+*.iml
+.DS_Store
