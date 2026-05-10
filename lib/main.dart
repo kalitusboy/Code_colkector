@@ -29,7 +29,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String? _sourcePath;
-  String? _outputPath;
   bool _isZip = false;
   bool _loading = false;
   String _log = 'مرحباً بك في جامع الأكواد';
@@ -39,20 +38,6 @@ class _HomeScreenState extends State<HomeScreen> {
     '.java', '.ts', '.json', '.xml', '.yml', '.yaml'
   };
   final TextEditingController _customExtController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _requestPermissions();
-  }
-
-  void _requestPermissions() async {
-    // فقط للتأكد من أن التطبيق يطلب الصلاحيات عند التشغيل
-    if (Platform.isAndroid) {
-      // في Android 13+ تختلف الصلاحيات، لكن file_picker سيتولى ذلك.
-      _log = 'تم طلب الصلاحيات تلقائياً عند الحاجة';
-    }
-  }
 
   void _addCustomExtension() {
     String ext = _customExtController.text.trim();
@@ -93,51 +78,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _pickOutput() async {
-    try {
-      // مسار افتراضي آمن
-      Directory? downloadDir;
-      if (Platform.isAndroid) {
-        try {
-          downloadDir = await getExternalStorageDirectory();
-        } catch (e) {
-          _log = '⚠️ فشل الحصول على مسار التخزين، سنستخدم مجلد المستندات';
-        }
-      }
-      String initialPath = downloadDir?.path ?? '/storage/emulated/0/Download';
-      
-      final result = await FilePicker.platform.saveFile(
-        dialogTitle: 'اختر مكان حفظ الملف النصي',
-        fileName: 'collected_${DateTime.now().millisecondsSinceEpoch}.txt',
-        initialDirectory: initialPath,
-        allowedExtensions: ['txt'],
-        type: FileType.custom,
-      );
-      if (result != null) {
-        setState(() {
-          _outputPath = result;
-          _log = '💾 مسار الحفظ: $_outputPath';
-        });
-      } else {
-        setState(() => _log = '⚠️ لم يتم اختيار مسار، استخدم المسار الافتراضي');
-        // تعيين مسار افتراضي لتجنب الانهيار
-        final fallback = '/storage/emulated/0/Download/collected_${DateTime.now().millisecondsSinceEpoch}.txt';
-        setState(() {
-          _outputPath = fallback;
-          _log = '⚠️ تم استخدام المسار الافتراضي: $_outputPath';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _log = '❌ خطأ في اختيار المسار: $e\nسيتم استخدام مسار افتراضي';
-        _outputPath = '/storage/emulated/0/Download/collected_${DateTime.now().millisecondsSinceEpoch}.txt';
-      });
-    }
-  }
-
   Future<void> _startCollecting() async {
-    if (_sourcePath == null || _outputPath == null) {
-      setState(() => _log = '⚠️ حدد المصدر ومسار الحفظ');
+    if (_sourcePath == null) {
+      setState(() => _log = '⚠️ حدد المصدر أولاً');
       return;
     }
     if (_selectedExtensions.isEmpty) {
@@ -174,7 +117,13 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
       if (files.isEmpty) throw Exception('لا توجد ملفات بالامتدادات المحددة');
-      final out = File(_outputPath!);
+      
+      // حفظ الملف تلقائياً في مجلد المستندات الخاص بالتطبيق (آمن 100%)
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = 'collected_${DateTime.now().millisecondsSinceEpoch}.txt';
+      final outputPath = '${directory.path}/$fileName';
+      final out = File(outputPath);
+      
       final buffer = StringBuffer();
       buffer.writeln('📦 عدد الملفات: ${files.length}');
       buffer.writeln('=' * 60);
@@ -185,8 +134,11 @@ class _HomeScreenState extends State<HomeScreen> {
         buffer.writeln();
       }
       await out.writeAsString(buffer.toString());
-      setState(() => _log = '✅ تم الحفظ (${files.length} ملف) في: $_outputPath');
-      await Share.shareXFiles([XFile(_outputPath!)], text: 'تم تجميع الأكواد');
+      
+      setState(() => _log = '✅ تم الحفظ (${files.length} ملف) في: $outputPath');
+      
+      // مشاركة الملف (حتى يتمكن المستخدم من حفظه في مكان آخر أو إرساله)
+      await Share.shareXFiles([XFile(outputPath)], text: 'تم تجميع الأكواد بنجاح');
     } catch (e) {
       setState(() => _log = '❌ خطأ: $e');
     } finally { setState(() => _loading = false); }
@@ -221,9 +173,10 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(child: TextField(controller: _customExtController, decoration: const InputDecoration(hintText: 'مثل .cpp'))),
             IconButton(icon: const Icon(Icons.add), onPressed: _addCustomExtension),
           ]),
-          OutlinedButton(onPressed: _pickSource, child: Text(_sourcePath == null ? 'اختر المصدر' : '✓ تم')),
-          OutlinedButton(onPressed: _pickOutput, child: Text(_outputPath == null ? 'اختر الحفظ' : '✓ تم')),
-          ElevatedButton(onPressed: _loading ? null : _startCollecting, child: _loading ? const CircularProgressIndicator() : const Text('🚀 ابدأ')),
+          OutlinedButton(onPressed: _pickSource, child: Text(_sourcePath == null ? 'اختر المصدر' : '✓ تم اختيار المصدر')),
+          const SizedBox(height: 16),
+          ElevatedButton(onPressed: _loading ? null : _startCollecting, child: _loading ? const CircularProgressIndicator() : const Text('🚀 ابدأ التجميع والمشاركة')),
+          const SizedBox(height: 16),
           Expanded(child: Container(padding: const EdgeInsets.all(10), color: Colors.grey[100], child: SelectableText(_log))),
         ]),
       ),
