@@ -37,7 +37,7 @@ android {
 
     defaultConfig {
         applicationId "com.example.code_collector"
-        minSdk 23
+        minSdk 21
         targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
